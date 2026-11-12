@@ -1,3 +1,4 @@
+import {currentPage,navigate,renderArchive} from './pages.mjs';
 import {createClient} from '@supabase/supabase-js';
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const when=s=>new Date(s).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',dateStyle:'short',timeStyle:'short'});
@@ -9,7 +10,7 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
   $('save-settlement').disabled=!ready||!draft.model?.money||draft.sampleMode||loading;
   const same=active&&active.month.slice(0,7)===$('month').value;
   $('save-info').textContent=same?`${active.month.slice(0,7)} · 저장 버전 v${active.version}${dirty?' · 저장하지 않은 변경사항':''}`:ready?'현재 정산은 아직 저장하지 않았습니다.':'로그인하고 담당자 승인을 받으면 월별로 저장할 수 있습니다.';
-  $('saved-workspace').hidden=!ready;$('manage-team').hidden=member?.role!=='admin';
+  $('archive-gate').hidden=ready;$('archive-content').hidden=!ready;$('work-account-status').textContent=ready?`${session.user.email} · ${member.role==='admin'?'관리자':'담당자'} · 월별 정산 저장 가능`:'월별 저장은 담당자 로그인 및 승인 후 이용할 수 있습니다.';$('saved-workspace').hidden=!ready;$('manage-team').hidden=member?.role!=='admin';
  }
  async function api(path,options={}){
   const {data:{session:current}}=await db.auth.getSession();if(!current)throw new Error('다시 로그인해 주세요.');
@@ -17,7 +18,7 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
   const data=await res.json();if(!res.ok)throw new Error(data.error||'요청에 실패했습니다.');return data;
  }
  async function refreshList(){
-  if(!member?.active)return;const data=await api('/api/settlements');records=data.records||[];
+  if(!member?.active)return;const data=await api('/api/settlements');records=data.records||[];renderArchive(records);
   $('saved-records').innerHTML=records.length?`<table><thead><tr><th>정산월</th><th>상태</th><th>버전</th><th>공급가액 / 청구액</th><th>수정 일시 · 담당자</th><th>작업</th></tr></thead><tbody>${records.map(r=>`<tr><td>${esc(r.month.slice(0,7))}</td><td>${r.status==='final'?'확정':'작성 중'}</td><td>v${r.version}</td><td>${Number(r.supply).toLocaleString('ko-KR')}원 / ${Number(r.invoice).toLocaleString('ko-KR')}원</td><td>${esc(when(r.updated_at))}<br><small>${esc(r.updated_by_email)}</small></td><td><button class="text-button" data-load="${esc(r.month.slice(0,7))}">불러오기</button> <button class="text-button" data-history="${esc(r.month.slice(0,7))}">수정 이력</button></td></tr>`).join('')}</tbody></table>`:'<p class="hint">저장된 월별 정산이 없습니다. CSV를 업로드하고 환율을 확인한 뒤 저장해 주세요.</p>';
  }
  async function accessChanged(current,force=false){
@@ -28,7 +29,7 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
   try{
    const {data,error}=await db.rpc('efa_request_access');if(error)throw error;member=data;
    $('account-status').textContent=member.active?(member.role==='admin'?'EFA 관리자 · 담당자 계정과 월별 정산을 관리할 수 있습니다.':'EFA 담당자 · 공동 정산 자료를 조회하고 저장할 수 있습니다.'):'담당자 승인 대기 중입니다. 관리자에게 승인을 요청해 주세요.';
-   $('change-password').hidden=!member.active;update();if(member.active)await refreshList();
+   $('change-password').hidden=!member.active;update();if(member.active){await refreshList();if(member.role==='admin'&&currentPage()==='account')await showTeam();}
   }catch(e){$('account-status').textContent='접근 권한을 확인하지 못했습니다. 로그인 상태를 새로 확인해 주세요.';showError(e);update();}
  }
  async function load(month,version){
@@ -39,7 +40,7 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
    const {data:blob,error}=await db.storage.from('efa-billing-raw').download(record.source_path);if(error)throw error;
    changing=true;await restore(record,blob);changing=false;
    const latest=records.find(r=>r.month.slice(0,7)===month);active={month:record.month,version:version?(latest?.version||record.version):record.version};dirty=false;
-   $('settlement-note').value=record.note;$('settlement-status').value=record.status;
+   navigate('settlement');$('settlement-note').value=record.note;$('settlement-status').value=record.status;
    if(version&&Number(version)!==active.version){dirty=true;onToast(`과거 v${version}을 불러왔습니다. 저장하면 새 버전으로 기록됩니다.`);}else onToast(`${month} 정산을 불러왔습니다.`);
   }catch(e){changing=false;showError(e);}finally{loading=false;update();}
  }
@@ -81,6 +82,9 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
   const data=await api('/api/team');$('team-panel').hidden=false;
   $('team-records').innerHTML=`<table><thead><tr><th>이메일</th><th>권한 · 상태</th><th>작업</th></tr></thead><tbody>${data.requests.map(m=>`<tr><td>${esc(m.email)}</td><td>승인 대기</td><td><button class="text-button" data-user="${m.user_id}" data-operation="approve">승인</button></td></tr>`).join('')}${data.members.map(m=>`<tr><td>${esc(m.email)}</td><td>${m.role==='admin'?'관리자':'담당자'} · ${m.active?'활성':'중지'}</td><td>${m.role==='admin'?'—':`<button class="text-button" data-user="${m.user_id}" data-operation="${m.active?'disable':'enable'}">${m.active?'접근 중지':'접근 허용'}</button>`}</td></tr>`).join('')}</tbody></table>`;
  }
+ document.addEventListener('efa:page',()=>{if(currentPage()==='account'&&member?.role==='admin')showTeam().catch(showError);});
+ document.addEventListener('efa:load',e=>load(e.detail.month));
+ $('archive-metric').addEventListener('change',()=>renderArchive());
  $('manage-team').addEventListener('click',()=>showTeam().catch(showError));
  $('close-team').addEventListener('click',()=>$('team-panel').hidden=true);
  $('team-records').addEventListener('click',async e=>{const b=e.target.closest('[data-user]');if(!b)return;b.disabled=true;try{await api('/api/team',{method:'POST',body:JSON.stringify({userId:b.dataset.user,operation:b.dataset.operation})});await showTeam();}catch(e){showError(e);b.disabled=false;}});

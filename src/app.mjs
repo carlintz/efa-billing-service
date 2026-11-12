@@ -1,3 +1,4 @@
+import {bootPages} from './pages.mjs';
 import {parseCSV,calculate,period,GROUPS,HEADERS,num,mul,round,percentShare} from './core.mjs';
 import {bootPersistence} from './persistence.mjs';
 import {makeWorkbook} from './excel.mjs';
@@ -106,6 +107,7 @@ $('sample').addEventListener('click',()=>{
 updatePeriod();
 lookup();
 
+bootPages();
 bootPersistence({
  getDraft:()=>({model,filename:loadedName,file:currentFile,sourcePath:storedSourcePath,rateOrigin,sampleMode}),
  onError:error,onToast:toast,
