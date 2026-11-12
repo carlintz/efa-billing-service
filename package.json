@@ -1,0 +1,25 @@
+{
+  "name": "efa-billing-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "start": "node serve.mjs"
+  },
+  "dependencies": {
+    "decimal.js": "10.6.0",
+    "domutils": "^3.2.2",
+    "exceljs": "4.4.0",
+    "htmlparser2": "^10.0.0",
+    "papaparse": "5.5.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "esbuild": "0.25.12"
+  },
+  "version": "1.0.0",
+  "engines": {
+    "node": "22.x"
+  }
+}
