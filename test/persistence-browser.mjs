@@ -18,14 +18,15 @@ await page.route('https://testdb.supabase.co/**',async r=>{
 });
 await page.route('**/api/settlements*',async r=>{
  const request=r.request(),u=new URL(request.url());
+ if(request.method()==='POST'&&u.searchParams.has('artifact'))return json(r,{artifact:{path:'saved.xlsx',filename:'EFA-v2.xlsx'}});
  if(request.method()==='POST'){
   const body=request.postDataJSON();writes.push(body);
-  current={month:body.month+'-01',version:(current?.version||0)+1,rate:body.rate,rate_origin:body.rateOrigin,source_path:body.sourcePath,source_filename:body.filename,status:body.status,note:body.note,updated_at:new Date().toISOString(),updated_by_email:email,supply:'18727',invoice:'20600'};
+  current={month:body.month+'-01',version:(current?.version||0)+1,rate:body.rate,rate_origin:body.rateOrigin,source_path:body.sourcePath,source_filename:body.filename,status:body.status,note:body.note,updated_at:new Date().toISOString(),updated_by_email:email,supply:'18727',invoice:'20600',groups:[{key:'seoul',total:'10'},{key:'hongkong',total:'5'},{key:'common',total:'-1'}]};
   versions.unshift({...current,created_at:current.updated_at,created_by_email:email});return json(r,{record:current});
  }
  if(u.searchParams.has('history'))return json(r,{records:versions});
  if(u.searchParams.has('month'))return json(r,{record:current});
- return json(r,{records:current?[current,{...current,month:'2026-09-01',supply:'0',invoice:'0'}]:[]});
+ return json(r,{records:current?[current,{...current,month:'2026-09-01',supply:'0',invoice:'0',groups:[]}]:[]});
 });
 await page.route('**/api/team',r=>json(r,{members:[],requests:[]}));
 await page.goto((process.env.EFA_TEST_URL||'http://localhost:4173')+'/account');await page.locator('#login-form').waitFor({state:'visible'});assert.equal(await page.locator('#save-settlement').isDisabled(),true);
@@ -33,7 +34,9 @@ await page.locator('#login-email').fill(email);await page.locator('#login-secret
 await page.locator('#file').setInputFiles({name:'test-billing.csv',mimeType:'text/csv',buffer:Buffer.from(csv)});await page.getByText('월평균 표 조회 완료',{exact:true}).waitFor();await page.locator('#settlement-note').fill('first save');await page.locator('#save-settlement').click();await page.getByText('2026-11 · 저장 버전 v1',{exact:true}).waitFor();
 assert.equal(writes[0].expectedVersion,0);assert.equal(uploads,1);
 await page.locator('#settlement-note').fill('updated');await page.locator('#save-settlement').click();await page.getByText('2026-11 · 저장 버전 v2',{exact:true}).waitFor();assert.equal(writes[1].expectedVersion,1);assert.equal(uploads,1);
-await page.locator('.page-nav [data-page=history]').click();assert.equal(await page.locator('#archive-chart .archive-column').count(),3);assert.match(await page.locator('#archive-chart').innerText(),/18,727원/);assert.equal(await page.locator('#archive-chart .missing').count(),1);assert.match(await page.locator('#archive-chart').innerText(),/0원/);await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.setViewportSize({width:1440,height:1100});await page.locator('#archive-metric').selectOption('invoice');assert.match(await page.locator('#archive-chart').innerText(),/20,600원/);await page.screenshot({path:'test-results/history-desktop.png',fullPage:true});
+await page.locator('.page-nav [data-page=history]').click();assert.equal(await page.locator('#archive-chart .archive-column').count(),3);assert.match(await page.locator('#archive-chart').innerText(),/18,727원/);assert.equal(await page.locator('#archive-chart .missing').count(),1);assert.match(await page.locator('#archive-chart').innerText(),/0원/);await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.setViewportSize({width:1440,height:1100});await page.locator('#archive-metric').selectOption('invoice');assert.match(await page.locator('#archive-chart').innerText(),/20,600원/);for(const [metric,amount] of [['seoul','13,377원'],['hongkong','6,688원'],['common','-1,338원']]){await page.locator('#archive-metric').selectOption(metric);assert.match(await page.locator('#archive-chart').innerText(),new RegExp(amount));}
+for(const [kind,name] of [['raw','test-billing.csv'],['excel','EFA-v2.xlsx']]){const download=page.waitForEvent('download');await page.locator(`#saved-records [data-download=${kind}][data-month="2026-11"]`).click();assert.equal((await download).suggestedFilename(),name);}
+await page.screenshot({path:'test-results/history-desktop.png',fullPage:true});
 await page.locator('[data-history="2026-11"]').click();await page.locator('#history-panel').waitFor({state:'visible'});assert.equal(await page.locator('#history-records tbody tr').count(),2);
 await page.locator('#archive-chart button').filter({hasText:'2026-11'}).click();await page.getByText('2026-11 정산을 불러왔습니다.',{exact:true}).waitFor();assert.equal(await page.locator('#rate').inputValue(),'1337.66');assert.equal(await page.locator('#settlement-note').inputValue(),'updated');assert.equal(await page.locator('#total').innerText(),'18,727원');
 await page.screenshot({path:'test-results/persistence-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

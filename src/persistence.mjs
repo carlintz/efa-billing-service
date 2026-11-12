@@ -19,7 +19,7 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
  }
  async function refreshList(){
   if(!member?.active)return;const data=await api('/api/settlements');records=data.records||[];renderArchive(records);
-  $('saved-records').innerHTML=records.length?`<table><thead><tr><th>정산월</th><th>상태</th><th>버전</th><th>공급가액 / 청구액</th><th>수정 일시 · 담당자</th><th>작업</th></tr></thead><tbody>${records.map(r=>`<tr><td>${esc(r.month.slice(0,7))}</td><td>${r.status==='final'?'확정':'작성 중'}</td><td>v${r.version}</td><td>${Number(r.supply).toLocaleString('ko-KR')}원 / ${Number(r.invoice).toLocaleString('ko-KR')}원</td><td>${esc(when(r.updated_at))}<br><small>${esc(r.updated_by_email)}</small></td><td><button class="text-button" data-load="${esc(r.month.slice(0,7))}">불러오기</button> <button class="text-button" data-history="${esc(r.month.slice(0,7))}">수정 이력</button></td></tr>`).join('')}</tbody></table>`:'<p class="hint">저장된 월별 정산이 없습니다. CSV를 업로드하고 환율을 확인한 뒤 저장해 주세요.</p>';
+  $('saved-records').innerHTML=records.length?`<table><thead><tr><th>정산월</th><th>상태</th><th>버전</th><th>공급가액 / 청구액</th><th>수정 일시 · 담당자</th><th>파일 다운로드</th><th>작업</th></tr></thead><tbody>${records.map(r=>`<tr><td>${esc(r.month.slice(0,7))}</td><td>${r.status==='final'?'확정':'작성 중'}</td><td>v${r.version}</td><td>${Number(r.supply).toLocaleString('ko-KR')}원 / ${Number(r.invoice).toLocaleString('ko-KR')}원</td><td>${esc(when(r.updated_at))}<br><small>${esc(r.updated_by_email)}</small></td><td><button class="text-button" data-download="raw" data-month="${esc(r.month.slice(0,7))}" data-version="${r.version}">RAW CSV ↓</button> <button class="text-button" data-download="excel" data-month="${esc(r.month.slice(0,7))}" data-version="${r.version}">정산 Excel ↓</button></td><td><button class="text-button" data-load="${esc(r.month.slice(0,7))}">불러오기</button> <button class="text-button" data-history="${esc(r.month.slice(0,7))}">수정 이력</button></td></tr>`).join('')}</tbody></table>`:'<p class="hint">저장된 월별 정산이 없습니다. CSV를 업로드하고 환율을 확인한 뒤 저장해 주세요.</p>';
  }
  async function accessChanged(current,force=false){
   const fingerprint=current?.access_token||'signed-out';if(!force&&lastHandledSession===fingerprint)return;lastHandledSession=fingerprint;
@@ -48,7 +48,7 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
   try{
    const {records:versions}=await api(`/api/settlements?month=${month}&history=1`);$('history-panel').hidden=false;
    $('history-title').textContent=`${month} 수정 이력`;
-   $('history-records').innerHTML=`<table><thead><tr><th>버전</th><th>상태 / 환율</th><th>메모</th><th>저장 일시 · 담당자</th><th>작업</th></tr></thead><tbody>${versions.map(v=>`<tr><td>v${v.version}</td><td>${v.status==='final'?'확정':'작성 중'} / ${esc(v.rate)}</td><td class="note-cell">${esc(v.note||'—')}</td><td>${esc(when(v.created_at))}<br><small>${esc(v.created_by_email)}</small></td><td><button class="text-button" data-load="${month}" data-version="${v.version}">이 버전 불러오기</button></td></tr>`).join('')}</tbody></table>`;
+   $('history-records').innerHTML=`<table><thead><tr><th>버전</th><th>상태 / 환율</th><th>메모</th><th>저장 일시 · 담당자</th><th>파일 다운로드</th><th>작업</th></tr></thead><tbody>${versions.map(v=>`<tr><td>v${v.version}</td><td>${v.status==='final'?'확정':'작성 중'} / ${esc(v.rate)}</td><td class="note-cell">${esc(v.note||'—')}</td><td>${esc(when(v.created_at))}<br><small>${esc(v.created_by_email)}</small></td><td><button class="text-button" data-download="raw" data-month="${month}" data-version="${v.version}">RAW CSV ↓</button> <button class="text-button" data-download="excel" data-month="${month}" data-version="${v.version}">정산 Excel ↓</button></td><td><button class="text-button" data-load="${month}" data-version="${v.version}">이 버전 불러오기</button></td></tr>`).join('')}</tbody></table>`;
   }catch(e){showError(e);}
  }
  $('save-settlement').addEventListener('click',async()=>{
@@ -67,15 +67,28 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
     const {data:file,error}=await db.storage.from('efa-billing-raw').download(path);if(error)throw error;
     path=`uploads/${month}/${crypto.randomUUID()}.csv`;const copy=await db.storage.from('efa-billing-raw').upload(path,file,{contentType:'text/csv',upsert:false});if(copy.error)throw copy.error;
    }
-   const {record}=await api('/api/settlements',{method:'POST',body:JSON.stringify({month,expectedVersion:expected,sourcePath:path,filename:draft.filename,rate:String(draft.model.rate),rateOrigin:draft.rateOrigin,note:$('settlement-note').value,status:$('settlement-status').value})});
+   const {record,artifactError}=await api('/api/settlements',{method:'POST',body:JSON.stringify({month,expectedVersion:expected,sourcePath:path,filename:draft.filename,rate:String(draft.model.rate),rateOrigin:draft.rateOrigin,note:$('settlement-note').value,status:$('settlement-status').value})});
    if(getDraft().model?.month===month){active={month:record.month,version:record.version};if(counter===changeCounter){onSaved(record);dirty=false;}else dirty=true;}
-   await refreshList();onToast(`${month} 정산 v${record.version}을 저장했습니다.`);
+   await refreshList();if(artifactError)showError(new Error(artifactError));onToast(`${month} 정산 v${record.version}을 저장했습니다.`);
   }catch(e){showError(e);}finally{loading=false;$('save-settlement').textContent=label;update();}
  });
  document.addEventListener('efa:changed',()=>{if(!changing){changeCounter++;dirty=true;}update();});
  for(const id of ['settlement-note','settlement-status'])$(id).addEventListener('input',()=>{changeCounter++;dirty=true;update();});
- $('saved-records').addEventListener('click',e=>{const b=e.target.closest('button');if(b?.dataset.load)load(b.dataset.load);if(b?.dataset.history)history(b.dataset.history);});
- $('history-records').addEventListener('click',e=>{const b=e.target.closest('button');if(b?.dataset.load)load(b.dataset.load,b.dataset.version);});
+ async function downloadSaved(button){
+  button.disabled=true;const old=button.textContent;button.textContent='준비 중…';
+  try{
+   const month=button.dataset.month,version=Number(button.dataset.version);let bucket,path,filename;
+   if(button.dataset.download==='raw'){
+    const {record}=await api(`/api/settlements?month=${month}&version=${version}`);bucket='efa-billing-raw';path=record.source_path;filename=record.source_filename;
+   }else{
+    const {artifact}=await api('/api/settlements?artifact=1',{method:'POST',body:JSON.stringify({month,version})});bucket='efa-billing-excel';path=artifact.path;filename=artifact.filename;
+   }
+   const {data:blob,error}=await db.storage.from(bucket).download(path);if(error)throw error;
+   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);onToast('저장된 파일을 다운로드했습니다.');
+  }catch(e){showError(e);}finally{button.disabled=false;button.textContent=old;}
+ }
+ $('saved-records').addEventListener('click',e=>{const b=e.target.closest('button');if(b?.dataset.download)downloadSaved(b);if(b?.dataset.load)load(b.dataset.load);if(b?.dataset.history)history(b.dataset.history);});
+ $('history-records').addEventListener('click',e=>{const b=e.target.closest('button');if(b?.dataset.download)downloadSaved(b);if(b?.dataset.load)load(b.dataset.load,b.dataset.version);});
  $('close-history').addEventListener('click',()=>$('history-panel').hidden=true);
  $('refresh-records').addEventListener('click',()=>refreshList().catch(showError));
  async function showTeam(){

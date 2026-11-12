@@ -13,7 +13,7 @@ for(const route of ['rate','config','settlements','team']){
  await writeFile(`${output}/functions/api/${route}.func/.vc-config.json`,JSON.stringify({runtime:'nodejs22.x',handler:'index.mjs',launcherType:'Nodejs',maxDuration:60},null,2));
 }
 await mkdir('build/edge',{recursive:true});
-await build({entryPoints:['supabase/functions/efa-billing/index.mjs'],bundle:true,minify:true,platform:'browser',target:'es2022',format:'esm',external:['npm:@supabase/supabase-js@2.95.3'],mainFields:['browser','module','main'],outfile:'build/edge/index.js'});
+await build({entryPoints:['supabase/functions/efa-billing/index.mjs'],bundle:true,minify:true,platform:'browser',target:'es2022',format:'esm',plugins:[{name:'edge-excel',setup(b){b.onResolve({filter:/^exceljs$/},()=>({path:'npm:exceljs@4.4.0',external:true}));}}],external:['npm:@supabase/supabase-js@2.95.3'],mainFields:['browser','module','main'],outfile:'build/edge/index.js'});
 const security=[{key:'X-Content-Type-Options',value:'nosniff'},{key:'Referrer-Policy',value:'strict-origin-when-cross-origin'},{key:'Content-Security-Policy',value:"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://hagqpkfegwhgketkswua.supabase.co wss://hagqpkfegwhgketkswua.supabase.co; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"}];
 await writeFile(`${output}/config.json`,JSON.stringify({version:3,routes:[{src:'/(.*)',headers:Object.fromEntries(security.map(x=>[x.key,x.value])),continue:true},{src:'/(?:account|history|settlement)?/?',dest:'/index.html'},{handle:'filesystem'},{src:'/(.*)',status:404}]},null,2));
 console.log('Built independent Vercel static site and Node.js exchange-rate function.');

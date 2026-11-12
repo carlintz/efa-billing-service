@@ -1,6 +1,6 @@
 import {authorize,readBody,reply,failure,HttpError,protectedWrite} from '../lib/database.mjs';
 const MONTH=/^\d{4}-(0[1-9]|1[0-2])$/;
-const LIST='month,version,rate,status,source_filename,updated_at,updated_by_email,supply:snapshot->money->>supply,invoice:snapshot->money->>invoice';
+const LIST='month,version,rate,status,source_filename,groups:snapshot->groups,rate_origin,updated_at,updated_by_email,supply:snapshot->money->>supply,invoice:snapshot->money->>invoice';
 export default async function settlements(req,res){
  try{
   const {user}=await authorize(req),url=new URL(req.url,'http://localhost'),month=url.searchParams.get('month'),version=url.searchParams.get('version');
@@ -15,6 +15,6 @@ export default async function settlements(req,res){
    const {data,error}=await query.maybeSingle();if(error)throw error;if(!data)throw new HttpError(404,'저장된 정산이 없습니다.');return reply(res,200,{record:data});
   }
   if(req.method!=='POST'){res.setHeader('Allow','GET, POST');return reply(res,405,{error:'지원하지 않는 요청입니다.'});}
-  const body=await readBody(req);reply(res,200,await protectedWrite(req,'save',body));
+  const body=await readBody(req);reply(res,200,await protectedWrite(req,url.searchParams.has('artifact')?'artifact':'save',body));
  }catch(e){failure(res,e);}
 }

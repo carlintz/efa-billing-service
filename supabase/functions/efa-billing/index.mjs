@@ -1,3 +1,4 @@
+import {downloadArtifact} from '../../../lib/artifacts.mjs';
 import {createClient} from 'npm:@supabase/supabase-js@2.95.3';
 import {saveSettlement,manageMember} from '../../../lib/operations.mjs';
 import {HttpError} from '../../../lib/errors.mjs';
@@ -17,6 +18,7 @@ Deno.serve(async request=>{
   let body;try{body=JSON.parse(text);}catch{throw new HttpError(400,'요청 형식이 올바르지 않습니다.');}
   const ctx={user,admin,actor:identity.id,member};
   if(body.action==='save')return json(200,await saveSettlement(ctx,body));
+  if(body.action==='artifact')return json(200,await downloadArtifact(ctx,body));
   if(body.action==='member')return json(200,await manageMember(ctx,body));
   throw new HttpError(400,'지원하지 않는 작업입니다.');
  }catch(error){if(!error.status)console.error('EFA_WRITE_ERROR',error.message);return json(error.status||500,{error:error.status?error.message:'저장 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.'});}

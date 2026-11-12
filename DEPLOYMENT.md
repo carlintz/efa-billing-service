@@ -26,3 +26,7 @@ npm start
 ```
 
 로컬 DB 기능은 `.env.example`의 두 값을 실행 환경에 설정합니다. `.env`를 자동으로 읽지 않습니다. 원본 CSV 통합 검사는 `EFA_BILLING_FIXTURE`에 로컬 파일 경로를 설정합니다. 브라우저 검사는 로컬 서버에서 `node test/persistence-browser.mjs`로 모의 인증·저장·이력·복원 흐름을 검사합니다. 운영 배포 후 `/api/config`, 비로그인 정산 API의 401, 환율 조회, 실제 담당자 로그인과 월별 저장을 확인합니다.
+
+## 정산 결과 파일
+
+`efa_settlement_artifacts`가 정산월·버전과 Excel 경로·SHA-256을 연결합니다. 비공개 `efa-billing-excel` 버킷과 메타데이터는 활성 담당자만 읽고 서버만 쓸 수 있습니다. Edge Function은 고정 버전 `npm:exceljs@4.4.0`으로 Excel을 생성합니다. 기존 버전의 결과 파일은 첫 다운로드 요청 시 생성하며 저장된 원본 해시와 환율을 사용합니다. 신규 저장은 정산 트랜잭션 후 Excel 보관을 시도합니다. 파일 보관 실패 시 정산은 유지하고 사용자에게 재시도를 안내합니다.

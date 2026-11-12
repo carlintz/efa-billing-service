@@ -2,7 +2,7 @@ import {test} from 'node:test';import assert from 'node:assert/strict';
 import {saveSettlement,manageMember} from '../lib/operations.mjs';import settlements from '../api/settlements.mjs';import team from '../api/team.mjs';import config from '../api/config.mjs';
 const csv='ymd,projectName,usageAccountId,region,productCode,unblendedCost\n2026-10-15,efa,000000000001,APN2,AmazonECS,10\n2026-11-14,efa,000000000001,APE1,AmazonECS,5\n2026-11-14,efa,000000000001,Global,MZC Discount Program,-1\n';
 const body={month:'2026-11',expectedVersion:0,sourcePath:'uploads/2026-11/00000000-0000-4000-8000-000000000001.csv',filename:'billing.csv',rate:'1337.66',rateOrigin:'test',status:'draft',note:'initial',snapshot:{money:{supply:99999999}}};
-const ctx=rpc=>({actor:'admin-id',member:{role:'admin'},user:{storage:{from:()=>({download:async()=>({data:new Blob([csv])})})}},admin:{rpc}});
+const ctx=rpc=>({actor:'admin-id',member:{role:'admin'},user:{from:()=>({select(){return this;},eq(){return this;},maybeSingle:async()=>({data:{path:'existing.xlsx'}})}),storage:{from:()=>({download:async()=>({data:new Blob([csv])})})}},admin:{rpc}});
 test('stored snapshot is recomputed from private source; client totals are ignored',async()=>{
  let document;const result=await saveSettlement(ctx(async(name,args)=>{assert.equal(name,'efa_save_settlement');assert.equal(args.p_actor,'admin-id');document=args.p_document;return {data:{version:1}};}),body);
  assert.equal(result.record.version,1);assert.equal(document.snapshot.total,'14');assert.equal(document.snapshot.money.supply,18727);assert.equal(document.snapshot.money.invoice,20600);assert.equal(document.snapshot.raw,undefined);assert.match(document.source_sha256,/^[0-9a-f]{64}$/);
