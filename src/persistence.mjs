@@ -97,7 +97,7 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
  }
  document.addEventListener('efa:page',()=>{if(currentPage()==='account'&&session)accessChanged(session,true).catch(showError);});
  document.addEventListener('efa:load',e=>load(e.detail.month));
- $('archive-metric').addEventListener('change',()=>renderArchive());
+ for(const id of ['archive-target','archive-vat'])$(id).addEventListener('change',()=>renderArchive());
  $('manage-team').addEventListener('click',()=>showTeam().catch(showError));
  $('close-team').addEventListener('click',()=>$('team-panel').hidden=true);
  $('team-records').addEventListener('click',async e=>{const b=e.target.closest('[data-user]');if(!b)return;b.disabled=true;try{await api('/api/team',{method:'POST',body:JSON.stringify({userId:b.dataset.user,operation:b.dataset.operation})});await showTeam();}catch(e){showError(e);b.disabled=false;}});
