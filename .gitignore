@@ -11,3 +11,6 @@ playwright-report/
 *.zip
 *.csv
 *.xlsx
+
+build/
+supabase/.temp/

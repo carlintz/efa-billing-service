@@ -8,6 +8,7 @@
     "start": "node serve.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.95.3",
     "decimal.js": "10.6.0",
     "domutils": "^3.2.2",
     "exceljs": "4.4.0",
