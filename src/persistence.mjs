@@ -82,7 +82,7 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
   const data=await api('/api/team');$('team-panel').hidden=false;
   $('team-records').innerHTML=`<table><thead><tr><th>이메일</th><th>권한 · 상태</th><th>작업</th></tr></thead><tbody>${data.requests.map(m=>`<tr><td>${esc(m.email)}</td><td>승인 대기</td><td><button class="text-button" data-user="${m.user_id}" data-operation="approve">승인</button></td></tr>`).join('')}${data.members.map(m=>`<tr><td>${esc(m.email)}</td><td>${m.role==='admin'?'관리자':'담당자'} · ${m.active?'활성':'중지'}</td><td>${m.role==='admin'?'—':`<button class="text-button" data-user="${m.user_id}" data-operation="${m.active?'disable':'enable'}">${m.active?'접근 중지':'접근 허용'}</button>`}</td></tr>`).join('')}</tbody></table>`;
  }
- document.addEventListener('efa:page',()=>{if(currentPage()==='account'&&member?.role==='admin')showTeam().catch(showError);});
+ document.addEventListener('efa:page',()=>{if(currentPage()==='account'&&session)accessChanged(session,true).catch(showError);});
  document.addEventListener('efa:load',e=>load(e.detail.month));
  $('archive-metric').addEventListener('change',()=>renderArchive());
  $('manage-team').addEventListener('click',()=>showTeam().catch(showError));
@@ -101,7 +101,6 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
   try{const {error}=await db.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});if(error)throw error;onToast('로그인 링크를 보냈습니다. 이 브라우저에서 이메일 링크를 열어 주세요.');}catch(e){showError(new Error('로그인 메일 발송에 실패했습니다. 담당자 계정은 관리자에게 발급받아 비밀번호로 로그인할 수 있습니다.'));}finally{$('login-link').disabled=false;}
  });
  $('logout').addEventListener('click',async()=>{if(dirty&&!confirm('저장하지 않은 변경사항이 있습니다. 로그아웃할까요?'))return;try{const {error}=await db.auth.signOut({scope:'local'});if(error)throw error;}catch(e){showError(e);}});
- $('refresh-access').addEventListener('click',()=>accessChanged(session,true));
  $('change-password').addEventListener('click',()=>$('password-panel').hidden=!$('password-panel').hidden);
  $('password-form').addEventListener('submit',async e=>{e.preventDefault();$('update-password').disabled=true;try{const {error}=await db.auth.updateUser({password:$('new-password').value});if(error)throw error;$('new-password').value='';$('password-panel').hidden=true;onToast('비밀번호를 변경했습니다.');}catch(e){showError(e);}finally{$('update-password').disabled=false;}});
  try{
