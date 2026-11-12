@@ -15,7 +15,7 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
  async function api(path,options={}){
   const {data:{session:current}}=await db.auth.getSession();if(!current)throw new Error('다시 로그인해 주세요.');
   const res=await fetch(path,{...options,headers:{'Content-Type':'application/json',Authorization:`Bearer ${current.access_token}`,...options.headers}});
-  const data=await res.json();if(!res.ok)throw new Error(data.error||'요청에 실패했습니다.');return data;
+  const data=await res.json();if(!res.ok)throw Object.assign(new Error(data.error||'요청에 실패했습니다.'),{status:res.status});return data;
  }
  async function refreshList(){
   if(!member?.active)return;const data=await api('/api/settlements');records=data.records||[];renderArchive(records);
@@ -53,9 +53,13 @@ export async function bootPersistence({getDraft,restore,onSaved,onSignedOut,onEr
  }
  $('save-settlement').addEventListener('click',async()=>{
   const draft=getDraft();if(!member?.active||!draft.model?.money||draft.sampleMode||loading)return;
-  const month=draft.model.month,expected=active?.month.slice(0,7)===month?active.version:0,counter=changeCounter;
-  loading=true;update();const label=$('save-settlement').textContent;$('save-settlement').textContent='저장 중…';
+  const month=draft.model.month,counter=changeCounter;let expected=active?.month.slice(0,7)===month?active.version:0;
+  loading=true;update();const label=$('save-settlement').textContent;$('save-settlement').textContent='저장 중…';$('error').hidden=true;
   try{
+   if(!expected){
+    let existing;try{existing=(await api(`/api/settlements?month=${month}`)).record;}catch(e){if(e.status!==404)throw e;}
+    if(existing){if(!confirm(`${month} 정산 v${existing.version}이 이미 저장되어 있습니다. 현재 업로드한 내용으로 새 버전을 저장할까요? 기존 버전은 수정 이력에 보존됩니다.`))return;expected=existing.version;}
+   }
    let path=draft.sourcePath;
    if(!path){
     if(!draft.file)throw new Error('실제 CSV 원본 파일을 업로드해 주세요.');

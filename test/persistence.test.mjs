@@ -8,7 +8,7 @@ test('stored snapshot is recomputed from private source; client totals are ignor
  assert.equal(result.record.version,1);assert.equal(document.snapshot.total,'14');assert.equal(document.snapshot.money.supply,18727);assert.equal(document.snapshot.money.invoice,20600);assert.equal(document.snapshot.raw,undefined);assert.match(document.source_sha256,/^[0-9a-f]{64}$/);
 });
 test('stale revision maps to conflict and source-month mismatch is rejected',async()=>{
- await assert.rejects(saveSettlement(ctx(async()=>({error:{code:'40001'}})),body),e=>e.status===409);
+ for(const code of ['PT409','40001'])await assert.rejects(saveSettlement(ctx(async()=>({error:{code}})),body),e=>e.status===409);
  await assert.rejects(saveSettlement(ctx(async()=>({data:{}})),{...body,month:'2026-12'}),e=>e.status===400);
 });
 test('editor cannot administer accounts and account provisioning never accepts a client role',async()=>{
