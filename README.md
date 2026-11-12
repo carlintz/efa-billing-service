@@ -1,5 +1,13 @@
 # EFA Billing Service · 운영비용 정산
 
+## 운영 주소
+
+- 서비스: https://efa-billing-service.vercel.app
+- GitHub: https://github.com/carlintz/efa-billing-service
+- Vercel 관리: https://vercel.com/carlintzhs-1766s-projects/efa-billing-service
+
+`main` 브랜치를 운영 브랜치로 연결했습니다. 코드 변경은 GitHub에서 관리하며 Vercel이 연결된 저장소에서 빌드합니다. Vercel 팀의 기본 접근 보호 설정을 유지합니다. 이 저장소는 소스 공개 승인을 받아 public으로 관리하며, 원본 CSV·생성 Excel·인증정보는 저장소에 포함하지 않습니다.
+
 브라우저에서 CSV를 읽어 5개 시트의 Excel을 생성하는 독립 배포용 정산 도구입니다. CSV와 생성 파일을 서버에 저장하지 않습니다. 서버는 정적 화면과 서울외국환중개 환율 조회만 제공합니다.
 
 ## 실행
