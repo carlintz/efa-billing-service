@@ -27,16 +27,20 @@ export function parseCSV(text){
   return row;
  });
 }
-export function period(month){
+export function period(month,range){
  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw new Error('정산 대상월을 선택해 주세요.');
  const [y,m]=month.split('-').map(Number),prev=new Date(Date.UTC(y,m-2,1)).toISOString().slice(0,7);
- const start=prev+'-15',end=month+'-14',days=[];
+ const start=range===undefined?prev+'-15':range?.start,end=range===undefined?month+'-14':range?.end,days=[];
+ const valid=date=>typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)&&Number.isFinite(Date.parse(date+'T00:00:00Z'))&&new Date(date+'T00:00:00Z').toISOString().slice(0,10)===date;
+ if(!valid(start)||!valid(end))throw new Error('정산 시작일과 종료일을 올바르게 선택해 주세요.');
+ if(start>end)throw new Error('정산 종료일은 시작일 이후여야 합니다.');
+ if((Date.parse(end)-Date.parse(start))/86400000>=366)throw new Error('정산 기간은 최대 366일로 선택해 주세요.');
  for(let dt=new Date(start+'T00:00:00Z');dt.toISOString().slice(0,10)<=end;dt.setUTCDate(dt.getUTCDate()+1))days.push(dt.toISOString().slice(0,10));
- return {month,prev,start,end,days,rawStart:prev+'-01'};
+ return {month,prev,start,end,days,rawStart:start<prev+'-01'?start:prev+'-01'};
 }
 export function groupOf(r){return r.productCode==='MZC Discount Program'?'common':r.region==='APN2'?'seoul':r.region==='APE1'?'hongkong':'common';}
-export function calculate(rows,month,rate){
- const p=period(month),raw=rows.filter(r=>r.ymd>=p.rawStart&&r.ymd<=month+'-31');
+export function calculate(rows,month,rate,range){
+ const p=period(month,range),rawEnd=p.end>month+'-31'?p.end:month+'-31',raw=rows.filter(r=>r.ymd>=p.rawStart&&r.ymd<=rawEnd);
  const latest=raw.reduce((a,r)=>r.ymd>a?r.ymd:a,'');
  if(!latest)throw new Error('선택한 대상월과 전월에 해당하는 데이터가 없습니다.');
  const present=new Set(raw.map(r=>r.ymd));

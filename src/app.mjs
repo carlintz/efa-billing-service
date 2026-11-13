@@ -8,12 +8,14 @@ const now=new Date(),seoulNow=new Date(now.toLocaleString('en-US',{timeZone:'Asi
 function error(e){$('error').hidden=false;$('error').textContent=e.message||String(e);}
 function clearError(){$('error').hidden=true;}
 function toast(text){$('toast').textContent=text;$('toast').hidden=false;setTimeout(()=>$('toast').hidden=true,4000);}
-function updatePeriod(){try{const p=period($('month').value);$('period').textContent=`${p.start} ~ ${p.end}`;$('rate-month').textContent=`${p.prev.replace('-','년 ')}월 · 미국 달러`;return p;}catch(e){error(e);}}
+function selectedRange(){return {start:$('period-start').value,end:$('period-end').value};}
+function resetRange(){const p=period($('month').value);$('period-start').value=p.start;$('period-end').value=p.end;}
+resetRange();
+function updatePeriod(){try{const p=period($('month').value,selectedRange());$('period').textContent=`${p.start} ~ ${p.end}`;$('rate-month').textContent=`${p.prev.replace('-','년 ')}월 · 미국 달러`;return p;}catch(e){error(e);}}
 function render(){
- clearError();const p=updatePeriod();if(!p)return;
- $('export').disabled=true;
+ clearError();$('export').disabled=true;model=null;const p=updatePeriod();if(!p){$('results').hidden=true;$('empty').hidden=false;document.dispatchEvent(new Event('efa:changed'));return;}
  if(!rows)return;
- try{model=calculate(rows,$('month').value,$('rate').value);}catch(e){model=null;$('results').hidden=true;$('empty').hidden=false;error(e);return;}
+ try{model=calculate(rows,$('month').value,$('rate').value,selectedRange());}catch(e){model=null;$('results').hidden=true;$('empty').hidden=false;error(e);document.dispatchEvent(new Event('efa:changed'));return;}
  const m=model;$('results').hidden=false;$('empty').hidden=true;$('result-month').textContent=m.month;$('coverage').textContent=`${m.days.length-m.missing.length} / ${m.days.length}일 수집`;
  $('notice').hidden=!m.missing.length&&!sampleMode;
  $('notice').textContent=(sampleMode?'예시 데이터입니다. 실제 정산에는 billing.exported.csv를 업로드해 주세요. ':'')+(m.missing.length?`정산 기간 중 ${m.missing.length}일은 데이터가 없습니다. 현재 수집된 금액만 합산합니다. RAW 최신일: ${m.latest}. 미수집: ${m.missing.join(', ')}`:'');
@@ -82,7 +84,7 @@ async function loadFile(file){
   const buf=await file.arrayBuffer();let txt;
   try{txt=new TextDecoder('utf-8',{fatal:true}).decode(buf);}catch{txt=new TextDecoder('euc-kr').decode(buf);}
   const parsed=parseCSV(txt);const latest=parsed.reduce((a,r)=>r.ymd>a?r.ymd:a,'');rows=parsed;loadedName=file.name;sampleMode=false;currentFile=file;storedSourcePath=null;
-  $('month').value=latest.slice(0,7);$('rate').value='';rateOrigin='직접 입력';$('file-title').textContent=file.name;$('file-sub').textContent=`${fmt(rows.length,0)}건 · 최신일 ${latest} · ${(file.size/1024).toFixed(1)} KB`;
+  $('month').value=latest.slice(0,7);resetRange();$('rate').value='';rateOrigin='직접 입력';$('file-title').textContent=file.name;$('file-sub').textContent=`${fmt(rows.length,0)}건 · 최신일 ${latest} · ${(file.size/1024).toFixed(1)} KB`;
   document.querySelector('.file-button').textContent='다른 파일 선택';render();lookup();
  }catch(e){error(e);}finally{$('file').value='';}
 }
@@ -90,7 +92,8 @@ $('file').addEventListener('change',e=>loadFile(e.target.files[0]));
 $('drop').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('file').click();}});
 for(const name of ['dragenter','dragover'])$('drop').addEventListener(name,e=>{e.preventDefault();$('drop').classList.add('drag');});
 for(const name of ['dragleave','drop'])$('drop').addEventListener(name,e=>{e.preventDefault();$('drop').classList.remove('drag');if(name==='drop')loadFile(e.dataTransfer.files[0]);});
-$('month').addEventListener('change',()=>{$('rate').value='';rateOrigin='직접 입력';render();lookup();});
+for(const id of ['period-start','period-end'])$(id).addEventListener('change',render);
+$('month').addEventListener('change',()=>{try{resetRange();}catch(e){render();return;}$('rate').value='';rateOrigin='직접 입력';render();lookup();});
 $('rate').addEventListener('input',()=>{lookupID++;$('lookup').disabled=false;rateOrigin='직접 입력';$('rate-tag').textContent='직접 입력';$('rate-status').textContent='직접 입력한 환율입니다. 기준월 USD 월평균 매매기준율과 일치하는지 확인해 주세요.';render();});
 $('lookup').addEventListener('click',lookup);
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{tab=b.dataset.tab;document.querySelectorAll('[data-tab]').forEach(x=>{x.classList.toggle('selected',x===b);x.setAttribute('aria-selected',x===b?'true':'false');});drawTable();}));
@@ -99,7 +102,7 @@ $('export').addEventListener('click',async()=>{
  try{const wb=await makeWorkbook(snapshot,origin);const blob=new Blob([await wb.xlsx.writeBuffer()],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`EFA 운영비용 집계_${snapshot.prev}_${snapshot.month}${sampleMode?'_예시':''}.xlsx`;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);toast('5개 시트의 정산 Excel을 다운로드했습니다.');}catch(e){error(e);}finally{$('export').innerHTML=old;$('export').disabled=!model?.money;}
 });
 $('sample').addEventListener('click',()=>{
- ++lookupID;$('lookup').disabled=false;const p=period($('month').value);sampleMode=true;currentFile=null;storedSourcePath=null;rows=[];
+ ++lookupID;$('lookup').disabled=false;const p=updatePeriod();if(!p)return;sampleMode=true;currentFile=null;storedSourcePath=null;rows=[];
  for(const [i,date] of p.days.entries())for(const [region,productCode,value] of [['APN2','AmazonECS',11.2],['APN2','AmazonRDS',3.1],['APE1','AmazonECS',7.3],['USW2','AmazonVPC',.24],['Global','AWSGlobalAccelerator',.6]])rows.push({ymd:date,projectName:'efa-demo',usageAccountId:'000000000000',region,productCode,unblendedCost:String(value+(i%5)*.03)});
  rows.push({ymd:p.month+'-01',projectName:'efa-demo',usageAccountId:'000000000000',region:'Global',productCode:'MZC Discount Program',unblendedCost:'-8.5'});
  $('file-title').textContent='예시 데이터 · 실제 청구 데이터가 아닙니다';$('file-sub').textContent=`${rows.length}건 · 정산 기능을 미리 확인하세요`;$('rate').value='1300';rateOrigin='예시용 환율';$('rate-tag').textContent='예시 환율';$('rate-status').textContent='1,300원은 기능 확인을 위한 예시 환율입니다. 실제 정산에는 공식 환율을 사용하세요.';render();
@@ -117,7 +120,7 @@ bootPersistence({
   const buffer=await blob.arrayBuffer();let text;try{text=new TextDecoder('utf-8',{fatal:true}).decode(buffer);}catch{text=new TextDecoder('euc-kr').decode(buffer);}
   const parsed=parseCSV(text);++lookupID;$('lookup').disabled=false;
   rows=parsed;sampleMode=false;currentFile=null;storedSourcePath=record.source_path;loadedName=record.source_filename;
-  $('month').value=record.month.slice(0,7);$('rate').value=record.rate;rateOrigin=record.rate_origin;
+  $('month').value=record.month.slice(0,7);const savedPeriod=record.snapshot?.start&&record.snapshot?.end?record.snapshot:period($('month').value);$('period-start').value=savedPeriod.start;$('period-end').value=savedPeriod.end;$('rate').value=record.rate;rateOrigin=record.rate_origin;
   $('file-title').textContent=record.source_filename;$('file-sub').textContent=`저장된 원본 · ${fmt(parsed.length,0)}건`;
   document.querySelector('.file-button').textContent='다른 파일 선택';$('rate-tag').textContent='저장된 환율';$('rate-status').textContent=`저장 당시의 환율과 출처를 복원했습니다. ${record.rate_origin}`;
   render();

@@ -41,3 +41,4 @@ footer{display:flex;justify-content:space-between;align-items:center;gap:22px;fo
 @media(max-width:580px){.archive-controls{width:100%}.archive-controls .chart-control{min-width:0;flex:1}.archive-bars.stacked .archive-track{height:180px}}
 
 .archive-tooltip p{color:#fff}
+.period-fields{margin-top:20px}.period-fields+.hint{margin:12px 0 16px}
